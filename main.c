@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <ctype.h>
 
 
 /* TRUE/OK  o FALSE/ERROR */
@@ -95,7 +95,7 @@ int LList_size(LList* lista) {
         current = current->sig;                     // Mueve al siguiente nodo
     }
 
-    return count;                                   // Retorna el tamaño de la lista
+    return count-1;                                   // Retorna el tamaño de la lista
 }
 
 
@@ -114,7 +114,8 @@ BOOLEAN LList_add(LList* lista, void* valor) {
 
     if (lista->sig == NULL) {                       // Si la lista está vacía
         lista->sig = nuevoNodo;                     // El nuevo nodo se convierte en el primer nodo de la lista
-    } else {
+    }
+    else {
         LList* current = lista->sig;                // Inicializa el puntero actual al primer nodo de la lista
         while (current->sig != NULL) {              // Encuentra el último nodo de la lista
             current = current->sig;                 // Mueve al siguiente nodo
@@ -247,6 +248,17 @@ BOOLEAN LList_removeValue(LList* lista, void* valor) {
     return OK;
 }
 
+/*
+ * Function to print all values stored in the LList
+ */
+void printLList(LList* list) {
+    LList* current = list->sig;                          // Initialize current pointer to the beginning of the list
+    while (current != NULL) {
+        printf("%s\n", (char*)current->value);      // Print the value of the current node
+        current = current->sig;                     // Move to the next node
+    }
+}
+
 /************************************************************
  *      C A L C U L A T O R
 ************************************************************/
@@ -268,65 +280,153 @@ char* readPolynomial() {
     scanf("%99[^\n]", polynomial);                  // Read the polynomial from standard input (up to 99 characters excluding newline)
     getchar();                                      // Consume the newline character left in the input buffer
 
-    return polynomial; // Return the polynomial string
+    return polynomial;                              // Return the polynomial string
+}
+
+void printPolynomial(const char* polynomial) {
+    printf("Polynomial: %s\n", polynomial);
 }
 
 /**
- * Checks if the entered equation is valid and follows an acceptable format for a polynomial.
+ * Checks if the entered equation is valid and contains only the specified characters.
+ * Allowed characters: Space, ^, x, number, +, and -
  * 
  * Parameters:
- *   equation: The equation entered by the user.
+ *   equation: The equation string
  * 
  * Returns:
- *   bool: true if the equation is valid, false otherwise.
+ *   BOOLEAN: OK if the equation follows the rules and contains only the allowed characters, ERROR otherwise.
  */
 BOOLEAN isValidPolynomial(const char* equation) {
     int i = 0;
-    char prevChar = '\0';
-    BOOLEAN validTerm = ERROR;
 
     // Iterate through each character in the equation
     while (equation[i] != '\0') {
         char currentChar = equation[i];
 
-        // Skip whitespace characters
+        /*********************************
+        *   Skip whitespace characters   *
+        *********************************/
         if (isspace(currentChar)) {
             i++;
             continue;
         }
 
-        // Check if the current character is valid
-        if (!isdigit(currentChar) && currentChar != 'x' && currentChar != '^' && currentChar != '+' && currentChar != '-' && currentChar != '*' && currentChar != '/' && currentChar != '.' && currentChar != '^') {
+        /************************************************
+        *   Check if the current character is allowed   *
+        ************************************************/
+        // Number, 'x', '^', '+' or '-'
+        if (!isdigit(currentChar) && currentChar != 'x' && currentChar != '^' && currentChar != '+' && currentChar != '-') {
             return ERROR; // Invalid character found
         }
 
-        // Check if consecutive operators are present
-        if ((currentChar == '+' || currentChar == '-' || currentChar == '*' || currentChar == '/') && (prevChar == '+' || prevChar == '-' || prevChar == '*' || prevChar == '/')) {
-            return ERROR; // Consecutive operators found
+        /*********************************
+        *     Check additional rules     *
+        *********************************/
+        // After each '^', there must be a number
+        if (currentChar == '^') {
+            if (!isdigit(equation[i + 1])) {
+                return ERROR;
+            }
+        }
+        
+        // After 'x', only one of '^', '-', '+', space, or nothing (if it's the last character) is allowed
+        else if (currentChar == 'x') {
+            char nextChar = equation[i + 1];
+            if (nextChar != '^' && nextChar != '-' && nextChar != '+' && !isspace(nextChar) && nextChar != '\0') {
+                return ERROR;
+            }
+        }
+        
+        // After each number, only 'x', '^', '-', '+', space, or nothing (if it's the last character) is allowed
+        else if (isdigit(currentChar)) {
+            char nextChar = equation[i + 1];
+            if (nextChar != 'x' && nextChar != '^' && nextChar != '-' && nextChar != '+' && !isspace(nextChar) && nextChar != '\0') {
+                return ERROR;
+            }
         }
 
-        // Check if 'x' is followed by '^'
-        if (currentChar == 'x' && equation[i + 1] != '^') {
-            return ERROR; // Invalid 'x' term found
-        }
-
-        // Check if '^' is followed by a digit
-        if (currentChar == '^' && !isdigit(equation[i + 1])) {
-            return ERROR; // Invalid exponent found
-        }
-
-        // Check if there are valid terms in the equation
-        if ((isdigit(currentChar) || currentChar == 'x') && (prevChar == '+' || prevChar == '-' || prevChar == '\0')) {
-            validTerm = OK; // A valid term is found
-        } else if (prevChar == '^' && !isdigit(currentChar)) {
-            return ERROR; // Invalid coefficient found after '^'
-        }
-
-        prevChar = currentChar;
         i++;
     }
 
-    return validTerm; // Return OK if at least one valid term is found
+    return OK; // All characters are valid
+}
+
+/**
+ * Prompts the user to enter the value of x for the equation.
+ * 
+ * Returns:
+ *   int: The value of x entered by the user.
+ */
+int enterXValue() {
+    int xValue;
+
+    printf("Enter the value of x: ");
+    scanf("%d", &xValue);
+
+    return xValue;
+}
+
+/*
+ * Function to remove spaces from a string
+ */
+char* removeSpaces(const char* equation) {
+    // Allocate memory for the new string
+    char* result = (char*)malloc(strlen(equation) + 1);
+    if (result == NULL) {
+        printf("Memory allocation failed.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Copy characters from the original string to the new string, excluding spaces
+    int j = 0;
+    for (int i = 0; equation[i] != '\0'; i++) {
+        if (equation[i] != ' ') {
+            result[j++] = equation[i];
+        }
+    }
+
+    // Add null terminator to the end of the new string
+    result[j] = '\0';
+
+    return result;
+}
+
+
+LList* parseEquation(const char* equation) {
+    char* equationCopy = removeSpaces(equation);  // Assign the result of removeSpaces back to equationCopy
+
+    printf("Parsing equation: %s\n", equationCopy);
+    
+    LList* termsList = LList_create();
+    
+    char* term = strtok(equationCopy, "+-");
+    while (term != NULL) {
+        printf("Term: %s\n", term);
+        
+        // Allocate memory for the term and copy the substring into it
+        char* termCopy = strdup(term);
+        
+        LList* newNode = (LList*)malloc(sizeof(LList));
+        newNode->value = termCopy;
+        newNode->sig = NULL;
+        
+        if (termsList->sig == NULL) {
+            termsList->sig = newNode;
+        } else {
+            LList* current = termsList->sig;
+            while (current->sig != NULL) {
+                current = current->sig;
+            }
+            current->sig = newNode;
+        }
+        
+        term = strtok(NULL, "+-");
+    }
+    
+    free(equationCopy);  // Free the memory allocated for the modified equation string
+    
+    return termsList;
 }
 
 
@@ -366,13 +466,12 @@ BOOLEAN testLList() {
     CONFIRM_TRUE(LList_destroy(lista), ERROR);
 
     printf("Everything OK buddy, your list works as a well lubed and silent car\n");
+
     return FALSE; // La función siempre retorna FALSE porque no se espera ningún error
 }
 
-int main(int argc, char *argv[]){
-    //testLList();
-
-     // Prueba de ecuación válida
+BOOLEAN testCheckEquation(){
+    // Prueba de ecuación válida
     const char* validEquation = "2x^2 + 3x - 1";
     BOOLEAN isValid = isValidPolynomial(validEquation);
     printf("Is the equation '%s' valid? %s\n", validEquation, isValid ? "Yes" : "No");
@@ -382,6 +481,35 @@ int main(int argc, char *argv[]){
     isValid = isValidPolynomial(invalidEquation);
     printf("Is the equation '%s' valid? %s\n", invalidEquation, isValid ? "Yes" : "No");
 
+    
+    // Prueba de ecuación no válida
+    const char* validEquation1 = "2x^2 +3- 1";
+    isValid = isValidPolynomial(validEquation1);
+    printf("Is the equation '%s' valid? %s\n", validEquation1, isValid ? "Yes" : "No");
+
+    
+    // Prueba de ecuación no válida
+    const char* invalidEquation2 = "2x^ + 3 - 1";
+    isValid = isValidPolynomial(invalidEquation2);
+    printf("Is the equation '%s' valid? %s\n", invalidEquation2, isValid ? "Yes" : "No");
+
+    return FALSE;
+}
+
+int main(int argc, char *argv[]){
+    /* This are some tests, run them to verify that every part is running well */
+    //testLList();
+    //testCheckEquation();
+
+    const char* equation = "2x^2 + 3x - 6";
+    LList* lista = LList_create();                  // Crea una lista ligada
+    CONFIRM_NOTNULL(lista, ERROR);                  // Verifica si la lista es NULL
+    lista = parseEquation(equation);
+    //printLList(lista);
+    
+    
+    // Free memory allocated for the linked list
+    LList_destroy(lista);
 
     return 0;
 }
