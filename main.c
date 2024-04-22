@@ -407,19 +407,7 @@ LList* parseEquation(const char* equation) {
         // Allocate memory for the term and copy the substring into it
         char* termCopy = strdup(term);
         
-        LList* newNode = (LList*)malloc(sizeof(LList));
-        newNode->value = termCopy;
-        newNode->sig = NULL;
-        
-        if (termsList->sig == NULL) {
-            termsList->sig = newNode;
-        } else {
-            LList* current = termsList->sig;
-            while (current->sig != NULL) {
-                current = current->sig;
-            }
-            current->sig = newNode;
-        }
+        LList_add(termsList, termCopy);
         
         term = strtok(NULL, "+-");
     }
@@ -429,6 +417,57 @@ LList* parseEquation(const char* equation) {
     return termsList;
 }
 
+
+LList* parseEquation2(const char* equation) {
+    LList* termsList = LList_create();
+    CONFIRM_NOTNULL(termsList, ERROR);
+
+    char* equationCopy = removeSpaces(equation);  // Assign the result of removeSpaces back to equationCopy
+    
+    int i = 0;
+    
+    while (1) { // Infinite loop
+        // Traverse the string until finding a + or -
+        char* before_sign = malloc(strlen(equationCopy) + 1); // Use malloc to allocate dynamic memory
+        CONFIRM_NOTNULL(before_sign, ERROR);
+
+        char* sign = malloc(2); // To store only one character, we need 2 bytes (one for the character and one for the null terminator)
+        CONFIRM_NOTNULL(sign, ERROR);
+
+        int j = 0;
+        while (equationCopy[i] != '\0' && equationCopy[i] != '+' && equationCopy[i] != '-') {
+            before_sign[j++] = equationCopy[i++];
+        }
+
+        before_sign[j] = '\0'; // Add the null terminator at the end
+
+        // If a + or - is found, save it
+        if (equationCopy[i] == '+' || equationCopy[i] == '-') {
+            *sign = equationCopy[i];
+            *(sign + 1) = '\0'; // Add the null terminator
+            i++; // Move to the next character after the sign
+        } 
+        
+        else {
+            LList_add(termsList, strdup(before_sign));
+            // If no more signs are found, print the remaining text and exit the loop
+            printf("Text before the sign: %s\n", before_sign);
+            printf("No sign found in the string.\n");
+            break;
+        }
+
+        LList_add(termsList, strdup(before_sign));
+        LList_add(termsList, strdup(sign));
+        // Print the results
+        printf("Text before the sign: %s\n", before_sign);
+        printf("Sign found: %c\n", *sign);
+
+        free(before_sign);
+        free(sign);
+    }
+
+    return termsList;
+}
 
 /************************************************************
         M A I N
@@ -505,7 +544,8 @@ int main(int argc, char *argv[]){
     LList* lista = LList_create();                  // Crea una lista ligada
     CONFIRM_NOTNULL(lista, ERROR);                  // Verifica si la lista es NULL
     lista = parseEquation(equation);
-    //printLList(lista);
+    printf("\n");
+    printLList(parseEquation2(equation));
     
     
     // Free memory allocated for the linked list
