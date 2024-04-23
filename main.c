@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
 
 
 /* TRUE/OK  o FALSE/ERROR */
@@ -74,6 +75,7 @@ BOOLEAN LList_destroy(LList* lista) {
 
     while (current != NULL) {                       // Itera sobre la lista
         next = current->sig;                        // Almacena el siguiente nodo antes de liberar el actual
+        free(current->value);
         free(current);                              // Libera la memoria del nodo actual
         current = next;                             // Mueve al siguiente nodo
     }
@@ -251,7 +253,7 @@ BOOLEAN LList_removeValue(LList* lista, void* valor) {
 /*
  * Function to print all values stored in the LList
  */
-void printLList(LList* list) {
+void printLList(LList *list) {
     LList* current = list->sig;                          // Initialize current pointer to the beginning of the list
     while (current != NULL) {
         printf("%s\n", (char*)current->value);      // Print the value of the current node
@@ -259,9 +261,28 @@ void printLList(LList* list) {
     }
 }
 
+void printLListEquation(LList *list){
+LList* current = list->sig;                          // Initialize current pointer to the beginning of the list
+    while (current != NULL) {
+        printf("%s ", (char*)current->value);      // Print the value of the current node
+        current = current->sig;                     // Move to the next node
+    }
+    printf("\n");
+}
+
 /************************************************************
  *      C A L C U L A T O R
 ************************************************************/
+
+BOOLEAN contains(const char *text, char value) {
+    while (*text != '\0') {
+        if (*text == value) {
+            return TRUE;
+        }
+        text++;
+    }
+    return FALSE;
+}
 
 /**
  * Reads a polynomial from the standard input (keyboard).
@@ -392,33 +413,7 @@ char* removeSpaces(const char* equation) {
     return result;
 }
 
-
 LList* parseEquation(const char* equation) {
-    char* equationCopy = removeSpaces(equation);  // Assign the result of removeSpaces back to equationCopy
-
-    printf("Parsing equation: %s\n", equationCopy);
-    
-    LList* termsList = LList_create();
-    
-    char* term = strtok(equationCopy, "+-");
-    while (term != NULL) {
-        printf("Term: %s\n", term);
-        
-        // Allocate memory for the term and copy the substring into it
-        char* termCopy = strdup(term);
-        
-        LList_add(termsList, termCopy);
-        
-        term = strtok(NULL, "+-");
-    }
-    
-    free(equationCopy);  // Free the memory allocated for the modified equation string
-    
-    return termsList;
-}
-
-
-LList* parseEquation2(const char* equation) {
     LList* termsList = LList_create();
     CONFIRM_NOTNULL(termsList, ERROR);
 
@@ -451,22 +446,174 @@ LList* parseEquation2(const char* equation) {
         else {
             LList_add(termsList, strdup(before_sign));
             // If no more signs are found, print the remaining text and exit the loop
-            printf("Text before the sign: %s\n", before_sign);
-            printf("No sign found in the string.\n");
+            //printf("Text before the sign: %s\n", before_sign);
+            //printf("No sign found in the string.\n");
             break;
         }
 
         LList_add(termsList, strdup(before_sign));
         LList_add(termsList, strdup(sign));
         // Print the results
-        printf("Text before the sign: %s\n", before_sign);
-        printf("Sign found: %c\n", *sign);
+        //printf("Text before the sign: %s\n", before_sign);
+        //printf("Sign found: %c\n", *sign);
 
         free(before_sign);
         free(sign);
     }
 
     return termsList;
+}
+
+int getPower(const char *string){
+    int power = 0;
+    
+    const char *ptr = strchr(string, '^');
+
+    if (ptr == NULL) {
+        // Si no se encuentra el símbolo '^'
+        power = 1;
+    } else {
+        // Si se encuentra el símbolo '^', obtener el número que le sigue al signo
+        ptr++; // Avanza al siguiente caracter después del '^'
+        power = atoi(ptr); // Convierte el número después del '^' a entero
+    }
+    return power;
+}
+
+// Función para reemplazar el coeficiente en un monomio
+char *cambiar_coeficiente(char *monomio, int nuevo_coeficiente) {
+    // Encontrar la posición de 'x' en el monomio
+    char *posicion_x = strchr(monomio, 'x');
+    if (posicion_x == NULL) {
+        printf("Error: El monomio no contiene 'x'.\n");
+        return monomio; // Devolver el monomio original si no contiene 'x'
+    }
+
+    // Obtener la longitud del coeficiente actual
+    size_t longitud_coeficiente = posicion_x - monomio;
+
+    // Crear una nueva cadena para el monomio con el nuevo coeficiente
+    char *nuevo_monomio = malloc(longitud_coeficiente + 10); // Asumiendo que el nuevo coeficiente tenga un máximo de 10 dígitos
+    if (nuevo_monomio == NULL) {
+        printf("Error: No se pudo asignar memoria.\n");
+        exit(1);
+    }
+
+    // Copiar el nuevo coeficiente al nuevo monomio
+    sprintf(nuevo_monomio, "%d%s", nuevo_coeficiente, posicion_x);
+
+    return nuevo_monomio;
+}
+
+int getCoefficient(char *cadena) {
+    // Si la cadena está vacía o 'x' es el primer carácter, devolver 1
+    if (*cadena == '\0' || *cadena == 'x') {
+        return 1;
+    }
+
+    // Iterar sobre la cadena hasta encontrar la letra 'x' o el final de la cadena
+    while (*cadena != '\0') {
+        if (*cadena == 'x') {
+            // Retroceder un carácter para obtener el carácter anterior
+            char caracter_anterior = *(cadena - 1);
+            // Si el carácter anterior es un número, devolver su valor numérico
+            if (caracter_anterior >= '0' && caracter_anterior <= '9') {
+                return caracter_anterior - '0';
+            } else { // Si no es un número, devolver 1
+                return 1;
+            }
+        }
+        cadena++;
+    }
+    // Si no se encuentra la letra 'x', devolver 0
+    return 0;
+}
+
+void reduceEquation(LList *termsList){
+    LList *current = termsList->sig;
+    LList *current2 = current->sig;
+    LList *current2Prev = current;
+    int currentPower = 0;
+
+    while (current != NULL && current2 != NULL){
+        if(contains(current->value, 'x') == TRUE){
+            currentPower = getPower(current->value);
+
+            while(current2 != NULL){
+                
+                if(contains(current2->value, 'x') == TRUE && (currentPower == getPower(current2->value))){
+                    int coefficient = getCoefficient(current->value);
+                    if(contains(current2Prev->value, '+') == TRUE){
+                        coefficient += getCoefficient(current2->value);
+                    } else{
+                        coefficient -= getCoefficient(current2->value);
+                    }
+
+                    current->value = cambiar_coeficiente(current->value, coefficient);
+                    LList_removeValue(termsList, current2Prev->value);
+                    LList_removeValue(termsList, current2->value);
+
+                    current2Prev = current;
+                    current2 = current->sig;
+                }
+
+                current2Prev = current2;
+                current2 = current2->sig;
+            } 
+        }
+        
+        current = current->sig;
+        current2Prev = current;
+        current2 = current->sig;
+    }
+}
+
+int myPow(int base, int exponent){
+    int i;
+    int baseCopy = base;
+    for(i = 1; i<exponent; i++){
+        base *= baseCopy;
+    }
+    return base;
+}
+
+int calculate(LList *terms, int xValue){
+    LList *current = terms->sig;
+    int result = 0;
+    int signBuffer = 0; // 0 for add and 1 for substract
+
+    while (current != NULL){
+        char *term = current->value;
+        
+        if (strchr(term, '+') == NULL && strchr(term, '-') == NULL && strchr(term, 'x') == NULL){
+            // Verifica si el término no contiene "+" ni "-" ni "x": If it's a number
+            if(signBuffer == 0){
+                result += atoi(current->value);
+            } else{
+                result -= atoi(current->value);
+            }
+
+        } else if(strchr(term, '+') == NULL && strchr(term, '-') == NULL){
+            // Verifica si el término no contiene "+" ni "-": If it's a monomial
+            if(signBuffer == 0){
+                result += (getCoefficient(current->value) * myPow(xValue, getPower(current->value)));
+            } else {
+                result -= (getCoefficient(current->value) * myPow(xValue, getPower(current->value)));
+            }
+
+        } else{
+            // Is a sign
+            if(strchr(term, '+') == NULL){
+                signBuffer = 1;
+            } else{
+                signBuffer = 0;
+            }
+        }
+
+        current = current->sig;    
+    }
+
+    return result;
 }
 
 /************************************************************
@@ -535,21 +682,55 @@ BOOLEAN testCheckEquation(){
     return FALSE;
 }
 
+void run(){
+    
+    /*************************
+     *        PROGRAM        *
+     ************************/
+
+    int xValue;
+    int result;
+    char *polynomial;
+    LList *terms = LList_create();
+
+    // Ask for Equation
+    polynomial = readPolynomial();
+
+    // Verify Equation
+    while(isValidPolynomial(polynomial) != OK){
+        printf("ERROR, Invalid Polynomial, Try Again!\n");
+        polynomial = readPolynomial();
+    }
+
+    // Ask for 'X' value
+    xValue = enterXValue();
+
+    // Split Equation
+    terms = parseEquation(polynomial);
+
+    // Transform Equation to math
+    //reduceNumbers(terms);
+    reduceEquation(terms);
+
+    // Print Result
+    printf("\n");
+    printPolynomial(polynomial);
+    printf("Reduced: ");
+    printLListEquation(terms);
+    result = calculate(terms, xValue);
+    printf("For x = %d ; Result = %d\n\n", xValue, result);
+
+    // Free memory allocated for linked list
+    LList_destroy(terms);
+    free(polynomial);
+}
+
 int main(int argc, char *argv[]){
     /* This are some tests, run them to verify that every part is running well */
     //testLList();
     //testCheckEquation();
 
-    const char* equation = "2x^2 + 3x - 6";
-    LList* lista = LList_create();                  // Crea una lista ligada
-    CONFIRM_NOTNULL(lista, ERROR);                  // Verifica si la lista es NULL
-    lista = parseEquation(equation);
-    printf("\n");
-    printLList(parseEquation2(equation));
-    
-    
-    // Free memory allocated for the linked list
-    LList_destroy(lista);
+    run();
 
     return 0;
 }
